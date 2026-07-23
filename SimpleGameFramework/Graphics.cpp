@@ -1,6 +1,153 @@
 #include "Graphics.h"
 #include <string>
 
+namespace {
+	const char TEXTURE_VERTEX_SHADER[] = R"glsl(#version 130
+in vec3 aPosition;
+in vec4 aColor;
+in vec2 aTexCoord;
+in float aTextureIndex;
+in float aMatrixIndex;
+
+uniform mat4 proj;
+uniform mat4 view;
+uniform mat4 posMatrix[60];
+
+out vec4 vColor;
+out vec2 vTexCoord;
+flat out int vTextureIndex;
+
+void main()
+{
+	vec4 position = vec4(aPosition, 1.0);
+	if (aMatrixIndex >= 0.0)
+		position = posMatrix[int(aMatrixIndex)] * position;
+
+	gl_Position = proj * view * position;
+	vColor = aColor;
+	vTexCoord = aTexCoord;
+	vTextureIndex = int(aTextureIndex);
+}
+)glsl";
+
+	const char TEXTURE_FRAGMENT_SHADER[] = R"glsl(#version 130
+uniform sampler2D textures[16];
+
+in vec4 vColor;
+in vec2 vTexCoord;
+flat in int vTextureIndex;
+
+out vec4 outColor;
+
+vec4 sampleTexture(int index, vec2 texCoord)
+{
+	if (index == 0) return texture2D(textures[0], texCoord);
+	if (index == 1) return texture2D(textures[1], texCoord);
+	if (index == 2) return texture2D(textures[2], texCoord);
+	if (index == 3) return texture2D(textures[3], texCoord);
+	if (index == 4) return texture2D(textures[4], texCoord);
+	if (index == 5) return texture2D(textures[5], texCoord);
+	if (index == 6) return texture2D(textures[6], texCoord);
+	if (index == 7) return texture2D(textures[7], texCoord);
+	if (index == 8) return texture2D(textures[8], texCoord);
+	if (index == 9) return texture2D(textures[9], texCoord);
+	if (index == 10) return texture2D(textures[10], texCoord);
+	if (index == 11) return texture2D(textures[11], texCoord);
+	if (index == 12) return texture2D(textures[12], texCoord);
+	if (index == 13) return texture2D(textures[13], texCoord);
+	if (index == 14) return texture2D(textures[14], texCoord);
+	if (index == 15) return texture2D(textures[15], texCoord);
+	return vec4(1.0);
+}
+
+void main()
+{
+	if (vTextureIndex < 0) {
+		outColor = vColor;
+		return;
+	}
+
+	outColor = sampleTexture(vTextureIndex, vTexCoord) * vColor;
+}
+)glsl";
+
+	const char TEXTURE_FRAGMENT_BLUR_SHADER[] = R"glsl(#version 130
+uniform sampler2D textures[16];
+
+in vec4 vColor;
+in vec2 vTexCoord;
+flat in int vTextureIndex;
+
+out vec4 outColor;
+
+vec4 sampleTexture(int index, vec2 texCoord)
+{
+	if (index == 0) return texture2D(textures[0], texCoord);
+	if (index == 1) return texture2D(textures[1], texCoord);
+	if (index == 2) return texture2D(textures[2], texCoord);
+	if (index == 3) return texture2D(textures[3], texCoord);
+	if (index == 4) return texture2D(textures[4], texCoord);
+	if (index == 5) return texture2D(textures[5], texCoord);
+	if (index == 6) return texture2D(textures[6], texCoord);
+	if (index == 7) return texture2D(textures[7], texCoord);
+	if (index == 8) return texture2D(textures[8], texCoord);
+	if (index == 9) return texture2D(textures[9], texCoord);
+	if (index == 10) return texture2D(textures[10], texCoord);
+	if (index == 11) return texture2D(textures[11], texCoord);
+	if (index == 12) return texture2D(textures[12], texCoord);
+	if (index == 13) return texture2D(textures[13], texCoord);
+	if (index == 14) return texture2D(textures[14], texCoord);
+	if (index == 15) return texture2D(textures[15], texCoord);
+	return vec4(1.0);
+}
+
+vec2 texturePixelSize(int index)
+{
+	if (index == 0) return 1.0 / vec2(textureSize(textures[0], 0));
+	if (index == 1) return 1.0 / vec2(textureSize(textures[1], 0));
+	if (index == 2) return 1.0 / vec2(textureSize(textures[2], 0));
+	if (index == 3) return 1.0 / vec2(textureSize(textures[3], 0));
+	if (index == 4) return 1.0 / vec2(textureSize(textures[4], 0));
+	if (index == 5) return 1.0 / vec2(textureSize(textures[5], 0));
+	if (index == 6) return 1.0 / vec2(textureSize(textures[6], 0));
+	if (index == 7) return 1.0 / vec2(textureSize(textures[7], 0));
+	if (index == 8) return 1.0 / vec2(textureSize(textures[8], 0));
+	if (index == 9) return 1.0 / vec2(textureSize(textures[9], 0));
+	if (index == 10) return 1.0 / vec2(textureSize(textures[10], 0));
+	if (index == 11) return 1.0 / vec2(textureSize(textures[11], 0));
+	if (index == 12) return 1.0 / vec2(textureSize(textures[12], 0));
+	if (index == 13) return 1.0 / vec2(textureSize(textures[13], 0));
+	if (index == 14) return 1.0 / vec2(textureSize(textures[14], 0));
+	if (index == 15) return 1.0 / vec2(textureSize(textures[15], 0));
+	return vec2(1.0);
+}
+
+void main()
+{
+	if (vTextureIndex < 0) {
+		outColor = vColor;
+		return;
+	}
+
+	vec2 pixel = texturePixelSize(vTextureIndex);
+	vec4 blurred =
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2(-1.0, -1.0)) +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2( 0.0, -1.0)) * 2.0 +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2( 1.0, -1.0)) +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2(-1.0,  0.0)) * 2.0 +
+		sampleTexture(vTextureIndex, vTexCoord) * 4.0 +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2( 1.0,  0.0)) * 2.0 +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2(-1.0,  1.0)) +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2( 0.0,  1.0)) * 2.0 +
+		sampleTexture(vTextureIndex, vTexCoord + pixel * vec2( 1.0,  1.0));
+	outColor = blurred * (1.0 / 16.0) * vColor;
+}
+)glsl";
+
+	static_assert(TEXTURE_BUFFER_MAX_COUNT == 16, "Embedded shader texture limit must match batching limit");
+	static_assert(MATRIX_BUFFER_MAX_COUNT == 60, "Embedded shader matrix limit must match batching limit");
+}
+
 
 void sgf::Graphics::ResizeCube(float targetX, float targetY, float targetWidth, float targetHeight)
 {
@@ -71,8 +218,8 @@ void sgf::Graphics::SetCubeMatrixIndex(float index)
 sgf::Graphics::Graphics(GameApp* gameApp)
 {
 
-	mTextureProgram.LoadFromFile("shaders/TextureVertexShader.glsl", "shaders/TextureFragmentShader.glsl");
-	mBlurProgram.LoadFromFile("shaders/TextureVertexShader.glsl", "shaders/TextureFragmentShaderBlur.glsl");
+	mTextureProgram.LoadFromSource(TEXTURE_VERTEX_SHADER, TEXTURE_FRAGMENT_SHADER);
+	mBlurProgram.LoadFromSource(TEXTURE_VERTEX_SHADER, TEXTURE_FRAGMENT_BLUR_SHADER);
 	
 	glGenVertexArrays(1, &mCubeVAO);
 
@@ -457,7 +604,9 @@ void sgf::Graphics::Present()
 
 int sgf::Graphics::GetMaxTextureUnitCount() const
 {
-	return mGameApp->mTextureNumberMax;
+	return mGameApp->mTextureNumberMax < TEXTURE_BUFFER_MAX_COUNT
+		? mGameApp->mTextureNumberMax
+		: TEXTURE_BUFFER_MAX_COUNT;
 }
 
 void sgf::Graphics::Submit()

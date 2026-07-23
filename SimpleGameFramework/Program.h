@@ -29,9 +29,14 @@ namespace sgf {
 		~SimpleProgram();
 
 		void LoadFromFile(const char* vertexShader,const char* fragmentShader);
+		void LoadFromSource(const char* vertexShader, const char* fragmentShader);
 
 		unsigned int LoadShader(const char* path, ShaderType type);
+		unsigned int LoadShaderSource(const char* source, ShaderType type, const char* sourceName);
 		void Use();
+
+	private:
+		void Link(unsigned int vertexShaderUnit, unsigned int fragmentShaderUnit);
 	};
 }
 

@@ -22,7 +22,9 @@ sgf::GameAppBase::GameAppBase(int width, int height, const sgf::String& windowCa
     if(resiziable)
         windowFlags |= SDL_WindowFlags::SDL_WINDOW_RESIZABLE;
     //windowFlags |= SDL_WindowFlags::SDL_WINDOW_FULLSCREEN;
-    
+
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
@@ -30,6 +32,7 @@ sgf::GameAppBase::GameAppBase(int width, int height, const sgf::String& windowCa
     mGLContext = SDL_GL_CreateContext(mGameWindow);
     SDL_GL_MakeCurrent(mGameWindow,mGLContext);
 
+    glewExperimental = GL_TRUE;
     glewInit();
 
     int samples;

@@ -37,7 +37,8 @@
 using namespace std::chrono;
 
 const int VERTEX_BUFFER_MAX_COUNT = 1200;
-const int MATRIX_BUFFER_MAX_COUNT = 200;
+const int TEXTURE_BUFFER_MAX_COUNT = 16;
+const int MATRIX_BUFFER_MAX_COUNT = 60;
 
 const int LOADING_THREAD_NUM_MAX = 10;
 

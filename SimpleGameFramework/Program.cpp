@@ -1,6 +1,8 @@
 #include "Program.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <string>
 #include "Common.h"
 
 sgf::SimpleProgram::SimpleProgram()
@@ -17,10 +19,27 @@ void sgf::SimpleProgram::LoadFromFile(const char* vertexShader, const char* frag
 {
 	unsigned int vertexShaderUnit = LoadShader(vertexShader,SHADER_VERTEX);
 	unsigned int fragmentShaderUnit = LoadShader(fragmentShader,SHADER_FRAGMENT);
-	
+	Link(vertexShaderUnit, fragmentShaderUnit);
+}
+
+void sgf::SimpleProgram::LoadFromSource(const char* vertexShader, const char* fragmentShader)
+{
+	unsigned int vertexShaderUnit = LoadShaderSource(vertexShader, SHADER_VERTEX, "embedded vertex shader");
+	unsigned int fragmentShaderUnit = LoadShaderSource(fragmentShader, SHADER_FRAGMENT, "embedded fragment shader");
+	Link(vertexShaderUnit, fragmentShaderUnit);
+}
+
+void sgf::SimpleProgram::Link(unsigned int vertexShaderUnit, unsigned int fragmentShaderUnit)
+{
 	mProgram = glCreateProgram();
 	GL_CALL(glAttachShader(mProgram, vertexShaderUnit));
 	GL_CALL(glAttachShader(mProgram, fragmentShaderUnit));
+
+	GL_CALL(glBindAttribLocation(mProgram, 0, "aPosition"));
+	GL_CALL(glBindAttribLocation(mProgram, 1, "aColor"));
+	GL_CALL(glBindAttribLocation(mProgram, 2, "aTexCoord"));
+	GL_CALL(glBindAttribLocation(mProgram, 3, "aTextureIndex"));
+	GL_CALL(glBindAttribLocation(mProgram, 4, "aMatrixIndex"));
 
 	GLint success = 0;
 	GLchar errorLog[1024] = { 0 };
@@ -35,21 +54,25 @@ void sgf::SimpleProgram::LoadFromFile(const char* vertexShader, const char* frag
 
 	glDeleteShader(vertexShaderUnit);
 	glDeleteShader(fragmentShaderUnit);
-
 }
 
 unsigned int sgf::SimpleProgram::LoadShader(const char* path,ShaderType type)
 {
-	std::ifstream shaderFile;
-	shaderFile.open(path);
-	shaderFile.seekg(0,std::ios_base::end);
-	int shaderSize = shaderFile.tellg();
-	shaderFile.seekg(0, std::ios_base::beg);
-	char* shader = new char[shaderSize+1];
-	memset(shader,0, shaderSize + 1);
-	shaderFile.read(shader, shaderSize);
-	shaderFile.close();
+	std::ifstream shaderFile(path, std::ios::in | std::ios::binary);
+	if (!shaderFile) {
+		fprintf(stderr, "Unable to open shader file: '%s'\n", path);
+		exit(1);
+	}
 
+	std::ostringstream shaderBuffer;
+	shaderBuffer << shaderFile.rdbuf();
+	const std::string shaderSource = shaderBuffer.str();
+	return LoadShaderSource(shaderSource.c_str(), type, path);
+}
+
+
+unsigned int sgf::SimpleProgram::LoadShaderSource(const char* source, ShaderType type, const char* sourceName)
+{
 	unsigned int shaderType;
 	if(type == SHADER_VERTEX)
 		shaderType = GL_VERTEX_SHADER;
@@ -58,21 +81,20 @@ unsigned int sgf::SimpleProgram::LoadShader(const char* path,ShaderType type)
 
 	unsigned int shaderUnit = glCreateShader(shaderType);
 
-	GL_CALL(glShaderSource(shaderUnit, 1, &shader, NULL));
+	GL_CALL(glShaderSource(shaderUnit, 1, &source, NULL));
 
 	GL_CALL(glCompileShader(shaderUnit));
-	int success;
+	int success = 0;
 	glGetShaderiv(shaderUnit, GL_COMPILE_STATUS, &success);
 
 	if (!success) {
-		GLchar InfoLog[1024];
+		GLchar InfoLog[1024] = { 0 };
 		glGetShaderInfoLog(shaderUnit, 1024, NULL, InfoLog);
-		fprintf(stderr, "Error compiling shader type %d: '%s'\n", shaderUnit, InfoLog);
-		return -1;
+		fprintf(stderr, "Error compiling %s: '%s'\n", sourceName, InfoLog);
+		glDeleteShader(shaderUnit);
+		exit(1);
 	}
 
-	SGF_ASSERT(shader);
-	delete[] shader;
 	return shaderUnit;
 }
 
