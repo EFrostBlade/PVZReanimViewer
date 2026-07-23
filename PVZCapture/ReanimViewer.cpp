@@ -3,6 +3,7 @@
 #include "IconFonts.h"
 #include "GamePacker/GamePacker.h"
 #include <nfd.h>
+#include <imgui_internal.h>
 #include <algorithm>
 #include <cstdlib>
 #include <memory>
@@ -168,7 +169,28 @@ void ViewerApp::DrawImgui()
 
 	ImGui::Begin("Main DockSpace", nullptr, window_flags);
 
-	ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+	// Use a versioned dockspace ID so installations with the old floating-window
+	// layout receive the fixed defaults once while later user adjustments persist.
+	ImGuiID dockspace_id = ImGui::GetID("MainDockSpaceV2");
+	if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr) {
+		ImGui::DockBuilderRemoveNode(dockspace_id);
+		ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+		ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+		ImGuiID viewerDockId = dockspace_id;
+		ImGuiID sidebarDockId = ImGui::DockBuilderSplitNode(
+			viewerDockId, ImGuiDir_Left, 0.22f, nullptr, &viewerDockId);
+		ImGuiID resourcesDockId = ImGui::DockBuilderSplitNode(
+			sidebarDockId, ImGuiDir_Down, 0.55f, nullptr, &sidebarDockId);
+		ImGuiID controlsDockId = ImGui::DockBuilderSplitNode(
+			viewerDockId, ImGuiDir_Down, 0.23f, nullptr, &viewerDockId);
+
+		ImGui::DockBuilderDockWindow("Layer List", sidebarDockId);
+		ImGui::DockBuilderDockWindow("Image Resource List", resourcesDockId);
+		ImGui::DockBuilderDockWindow("Control Panel", controlsDockId);
+		ImGui::DockBuilderDockWindow("Viewer", viewerDockId);
+		ImGui::DockBuilderFinish(dockspace_id);
+	}
 	ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 
 	DisplayMenuBar();
