@@ -41,6 +41,14 @@ jobs:
           runVcpkgInstall: true
           vcpkgJsonGlob: '**/vcpkg.json'
 
+      - name: Integrate vcpkg with MSBuild
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_ROOT\vcpkg.exe" integrate install
+          if ($LASTEXITCODE -ne 0) {
+            throw "vcpkg integration failed with exit code $LASTEXITCODE"
+          }
+
       - name: Build Release x86
         shell: pwsh
         run: |
