@@ -1,4 +1,6 @@
 #include "Animator.h"
+#include <algorithm>
+#include <cmath>
 
 sgf::Animator::Animator()
 {
@@ -46,7 +48,7 @@ std::pair<int, int> sgf::Animator::GetTrackRange(const sgf::String& trackName)
 		}
 	}
 	if (!aTrack)
-		return { 0,0 };
+		return { -1,-1 };
 
 	int rStart = -1;
 	int rEnd = -1;
@@ -78,6 +80,8 @@ void sgf::Animator::SetFrameRange(int frameBegin, int frameEnd)
 void sgf::Animator::SetFrameRangeByTrackName(const sgf::String& trackName)
 {
 	auto range = GetTrackRange(trackName);
+	if (range.first < 0 || range.second < range.first)
+		return;
 	SetFrameRange(range.first, range.second);
 	mFrameIndexNow = range.first;
 }
@@ -229,17 +233,25 @@ void sgf::Animator::Update()
 		}
 		else {
 			float final = (mFrameIndexNow + num * mSpeed);
-			if (final >= mFrameIndexEnd) {
+			if (final > mFrameIndexEnd) {
 				switch (mPlayingState)
 				{
-				case PLAY_REPEAT:
-					mFrameIndexNow = mFrameIndexBegin;
+				case PLAY_REPEAT: {
+					const float rangeLength = mFrameIndexEnd - mFrameIndexBegin + 1.0f;
+					mFrameIndexNow = rangeLength > 0.0f
+						? mFrameIndexBegin + std::fmod(final - mFrameIndexBegin, rangeLength)
+						: mFrameIndexBegin;
 					break;
+				}
 				case PLAY_ONCE_TO:
 					SetFrameRangeByTrackName(mTargetTrack);
 					mPlayingState = PLAY_REPEAT;
 					break;
 				case PLAY_ONCE:
+					Pause();
+					mFrameIndexNow = mFrameIndexEnd;
+					break;
+				default:
 					Pause();
 					mFrameIndexNow = mFrameIndexEnd;
 					break;
@@ -298,9 +310,14 @@ void sgf::Animator::PresentMatrix(Graphics* g,const glm::mat4x4& mat)
 		if (!mExtraInfos[i].mVisible)
 			continue;
 
-		float transformDelta = mFrameIndexNow - int(mFrameIndexNow);
-		TrackFrameTransform aSource = x.mFrames[mFrameIndexNow];
-		float rate = float(mFrameIndexNow - mFrameIndexBegin) / float(mFrameIndexEnd - mFrameIndexBegin);
+		const int lastTrackFrame = static_cast<int>(x.mFrames.size()) - 1;
+		const int sourceFrame = std::max(0, std::min(
+			lastTrackFrame, static_cast<int>(std::floor(mFrameIndexNow))));
+		const int rangeEnd = std::max(0, std::min(
+			lastTrackFrame, static_cast<int>(std::floor(mFrameIndexEnd))));
+		const int destinationFrame = std::min(sourceFrame + 1, rangeEnd);
+		const float transformDelta = mFrameIndexNow - std::floor(mFrameIndexNow);
+		TrackFrameTransform aSource = x.mFrames[sourceFrame];
 
 		OffsetX = mExtraInfos[i].mOffsetX;
 		OffsetY = mExtraInfos[i].mOffsetY;
@@ -311,9 +328,10 @@ void sgf::Animator::PresentMatrix(Graphics* g,const glm::mat4x4& mat)
 		if (mReanimBlendCounter > 0) {
 			GetDeltaTransformEx(x.mFrames[mFrameIndexBlendBuffer], x.mFrames[mFrameIndexBegin], 1 - mReanimBlendCounter / mReanimBlendCounterMax, aSource, true);
 		}
-		else {
-			if (int(mFrameIndexNow) > mFrameIndexBegin)//ÏßÐÔ²åÖµ
-				GetDeltaTransformEx(x.mFrames[mFrameIndexNow-1], x.mFrames[mFrameIndexNow], transformDelta, aSource);
+		else if (destinationFrame > sourceFrame && transformDelta > 0.0f) {
+			GetDeltaTransformEx(
+				x.mFrames[sourceFrame], x.mFrames[destinationFrame],
+				transformDelta, aSource);
 		}
 
 		if (!aSource.f) {

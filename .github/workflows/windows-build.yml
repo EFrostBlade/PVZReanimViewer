@@ -70,6 +70,43 @@ jobs:
             throw "MSBuild failed with exit code $LASTEXITCODE"
           }
 
+      - name: Prepare FFmpeg 8.1.2
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'ffmpeg-8.1.2-essentials_build.7z'
+          $extract = Join-Path $env:RUNNER_TEMP 'ffmpeg-8.1.2'
+          $bundle = Join-Path $env:RUNNER_TEMP 'pvz-ffmpeg'
+          $uri = 'https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.7z'
+          $expectedHash = 'e25b682664025d49034c981afb4bae36238a40f29a3cc1c713ad9a8b5b3528f6'
+
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+          $actualHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "FFmpeg archive hash mismatch: $actualHash"
+          }
+
+          New-Item -ItemType Directory -Path $extract, $bundle -Force | Out-Null
+          & 7z.exe x $archive "-o$extract" -y | Out-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw "FFmpeg extraction failed with exit code $LASTEXITCODE"
+          }
+
+          $ffmpeg = Get-ChildItem -LiteralPath $extract -Recurse -File -Filter ffmpeg.exe |
+            Select-Object -First 1
+          $license = Get-ChildItem -LiteralPath $extract -Recurse -File |
+            Where-Object { $_.Name -eq 'LICENSE' } |
+            Select-Object -First 1
+          if (-not $ffmpeg -or -not $license) {
+            throw 'FFmpeg package is missing ffmpeg.exe or LICENSE'
+          }
+          Copy-Item -LiteralPath $ffmpeg.FullName -Destination (Join-Path $bundle 'ffmpeg.exe')
+          Copy-Item -LiteralPath $license.FullName -Destination (Join-Path $bundle 'FFMPEG-LICENSE.txt')
+          @'
+          FFmpeg 8.1.2 essentials build by Gyan Doshi
+          Binary: https://www.gyan.dev/ffmpeg/builds/
+          Source: https://github.com/FFmpeg/FFmpeg/commit/38b88335f9
+          '@ | Set-Content -LiteralPath (Join-Path $bundle 'FFMPEG-SOURCE.txt') -Encoding utf8NoBOM
+
       - name: Stage application
         shell: pwsh
         run: |
@@ -84,11 +121,17 @@ jobs:
           Get-ChildItem -LiteralPath $releaseDirectory -File |
             Where-Object { $_.Extension -in '.exe', '.dll', '.pdb' } |
             Copy-Item -Destination $stage
+          Copy-Item -LiteralPath `
+            (Join-Path $env:RUNNER_TEMP 'pvz-ffmpeg\ffmpeg.exe'), `
+            (Join-Path $env:RUNNER_TEMP 'pvz-ffmpeg\FFMPEG-LICENSE.txt'), `
+            (Join-Path $env:RUNNER_TEMP 'pvz-ffmpeg\FFMPEG-SOURCE.txt') `
+            -Destination $stage
           Copy-Item -LiteralPath README.md, LICENSE.txt -Destination $stage
 
           $files = Get-ChildItem -LiteralPath $stage -File
-          if (-not ($files.Name -contains 'PVZCapture.exe')) {
-            throw 'Staged artifact does not contain PVZCapture.exe'
+          if (-not ($files.Name -contains 'PVZCapture.exe') -or
+              -not ($files.Name -contains 'ffmpeg.exe')) {
+            throw 'Staged artifact does not contain PVZCapture.exe and ffmpeg.exe'
           }
           $files | Select-Object Name, Length | Format-Table -AutoSize
 

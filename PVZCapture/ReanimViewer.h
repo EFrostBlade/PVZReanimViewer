@@ -6,6 +6,8 @@
 #include "Animator.h"
 #include "Reanimation.h"
 #include "ResourceManager.h"
+#include <cstdio>
+#include <string>
 #include <vector>
 
 class ViewerApp: public sgf::GameApp {
@@ -31,6 +33,39 @@ public:
 	bool mNfdInitialized = false;
 	float mReanimSpeed = 1.0f;
 
+	bool mExportDialogRequested = false;
+	bool mExporting = false;
+	bool mExportFinished = false;
+	bool mExportSucceeded = false;
+	bool mExportExitWhenDone = false;
+	bool mAutoExportFailed = false;
+	int mExportFormat = 0;
+	int mExportWidth = 512;
+	int mExportHeight = 512;
+	int mExportFPS = 12;
+	int mExportFrameBegin = 0;
+	int mExportFrameEnd = 0;
+	int mExportFrameCurrent = 0;
+	int mExportFramesCaptured = 0;
+	int mExportFrameCount = 0;
+	float mExportScale = 1.0f;
+	bool mExportTransparent = true;
+	ImVec4 mExportBackground = { 0.41f, 0.38f, 0.36f, 1.0f };
+	sgf::String mExportOutputPath;
+	sgf::String mExportStatus = "Ready.";
+	std::wstring mExportOutputPathWide;
+	std::wstring mExportRawPath;
+	std::wstring mExportFfmpegPath;
+	FILE* mExportRawFile = nullptr;
+	unsigned int mExportFramebuffer = 0;
+	unsigned int mExportTexture = 0;
+	std::vector<unsigned char> mExportPixels;
+	float mExportSavedFrame = 0.0f;
+	float mExportSavedRangeBegin = 0.0f;
+	float mExportSavedRangeEnd = 0.0f;
+	bool mExportSavedPlaying = false;
+	sgf::Animator::PlayState mExportSavedPlayState = sgf::Animator::PLAY_NONE;
+
 
 public:
 	ViewerApp();
@@ -47,12 +82,31 @@ public:
 	void DrawTopLayer();
 
 	bool LoadReanim(const sgf::String& reanimPath, const std::vector<sgf::String>& extraImageDirs);
+	bool StartExport(
+		const sgf::String& outputPath,
+		int width,
+		int height,
+		float scale,
+		int fps,
+		bool transparent,
+		bool exitWhenDone = false,
+		int frameBegin = -1,
+		int frameEnd = -1);
 
 	void PresentAnimator();
 	void UpdateAnimatorState();
 
 private:
 	void ClearLoadedAnimation();
+	void DisplayExportDialog();
+	bool BeginExport(const sgf::String& outputPath, bool exitWhenDone);
+	bool CaptureExportFrame();
+	bool EncodeExport();
+	void FinishExport(bool succeeded, const sgf::String& status);
+	void ReleaseExportResources(bool removeRawFile);
+	void RestoreAnimatorAfterExport();
+	void OpenExportResult(bool selectInFolder) const;
+	sgf::String BuildDefaultExportName() const;
 	std::vector<sgf::String> BuildImageSearchDirs(
 		const sgf::String& reanimPath,
 		const std::vector<sgf::String>& extraImageDirs) const;
