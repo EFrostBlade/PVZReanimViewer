@@ -21,6 +21,8 @@ namespace sgf {
 		float a;
 		int f;
 		sgf::String i;
+		sgf::String font;
+		sgf::String text;
 	};
 
 	struct TrackInfo {
@@ -35,13 +37,14 @@ namespace sgf {
 		std::shared_ptr<std::vector<TrackInfo>> mTracks = nullptr;
 		std::shared_ptr<std::set<sgf::String>> mImagesSet = nullptr;
 		bool mIsLoaded = false;
+		sgf::String mLastError;
 		sgf::ResourceManager* mResourceManager;
 
 	public:
 		Reanimation();
 		~Reanimation();
 
-		void LoadFromFile(const char* filePath);
+		bool LoadFromFile(const char* filePath);
 		void Present(Graphics* g, int frameIndex);
 	};
 

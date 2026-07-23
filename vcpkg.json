@@ -27,6 +27,7 @@
     },
     "pugixml",
     "nlohmann-json",
-    "nativefiledialog-extended"
+    "nativefiledialog-extended",
+    "zlib"
   ]
 }
