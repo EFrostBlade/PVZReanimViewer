@@ -1,0 +1,101 @@
+name: Windows build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-x86:
+    name: Release x86
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      VCPKG_DEFAULT_TRIPLET: x86-windows
+      VCPKG_DEFAULT_HOST_TRIPLET: x86-windows
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce
+
+      - name: Install vcpkg dependencies
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
+        with:
+          vcpkgGitCommitId: 2475cc332a47b3a63bb3de58293bdab7726613ca
+          runVcpkgInstall: true
+          vcpkgJsonGlob: '**/vcpkg.json'
+
+      - name: Build Release x86
+        shell: pwsh
+        run: |
+          $arguments = @(
+            'PVZCapture.sln'
+            '/m'
+            '/t:Build'
+            '/p:Configuration=Release'
+            '/p:Platform=x86'
+            "/p:VcpkgRoot=$env:VCPKG_ROOT"
+            "/p:VcpkgInstalledDir=$env:GITHUB_WORKSPACE\vcpkg_installed"
+            '/p:VcpkgManifestInstall=false'
+            '/verbosity:minimal'
+            '/fileLogger'
+            '/fileLoggerParameters:LogFile=msbuild.log;Verbosity=diagnostic'
+          )
+          & msbuild @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Stage application
+        shell: pwsh
+        run: |
+          $releaseDirectory = Join-Path $env:GITHUB_WORKSPACE 'Release'
+          $executable = Join-Path $releaseDirectory 'PVZCapture.exe'
+          if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+            throw "Expected executable was not produced: $executable"
+          }
+
+          $stage = Join-Path $env:GITHUB_WORKSPACE 'artifact\PVZReanimViewer'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Get-ChildItem -LiteralPath $releaseDirectory -File |
+            Where-Object { $_.Extension -in '.exe', '.dll', '.pdb' } |
+            Copy-Item -Destination $stage
+          Copy-Item -LiteralPath README.md, LICENSE.txt -Destination $stage
+
+          $files = Get-ChildItem -LiteralPath $stage -File
+          if (-not ($files.Name -contains 'PVZCapture.exe')) {
+            throw 'Staged artifact does not contain PVZCapture.exe'
+          }
+          $files | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: Upload application
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: PVZReanimViewer-windows-x86
+          path: artifact/PVZReanimViewer
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
+
+      - name: Upload MSBuild log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: PVZReanimViewer-msbuild-log
+          path: msbuild.log
+          if-no-files-found: warn
+          retention-days: 14
